@@ -1,6 +1,7 @@
+import json
+
 from django import forms
 from django.utils.translation import gettext as _
-
 from taggit.utils import edit_string_for_tags, parse_tags
 
 
@@ -24,8 +25,11 @@ class TagField(forms.CharField):
 
     def clean(self, value):
         value = super().clean(value)
+        value_obj = json.loads(value)
+        tags_str = parse_tags(value_obj['tags'])
+        value_obj['tags'] = tags_str
         try:
-            return parse_tags(value)
+            return value_obj
         except ValueError:
             raise forms.ValidationError(
                 _("Please provide a comma-separated list of tags.")

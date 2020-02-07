@@ -19,7 +19,7 @@ class TagBase(models.Model):
     language_code = models.CharField(verbose_name=_('Language code'), max_length=255, default=settings.LANGUAGE_CODE, choices=list(map(lambda cou: (cou['code'], cou['code']), settings.PARLER_LANGUAGES[1])))
 
     def __str__(self):
-        return "{} ({})".format(self.name, self.language_code)
+        return self.name
 
     def __gt__(self, other):
         return self.name.lower() > other.name.lower()

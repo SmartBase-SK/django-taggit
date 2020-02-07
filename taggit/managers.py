@@ -124,10 +124,10 @@ class _TaggableManager(models.Manager):
         return self.through.lookup_kwargs(self.instance)
 
     @require_instance_manager
-    def add(self, *tags):
+    def add(self, lang, tags):
         db = router.db_for_write(self.through, instance=self.instance)
 
-        tag_objs = self._to_tag_model_instances(tags)
+        tag_objs = self._to_tag_model_instances(lang, tags)
         new_ids = {t.pk for t in tag_objs}
 
         # NOTE: can we hardcode 'tag_id' here or should the column name be got
@@ -165,7 +165,7 @@ class _TaggableManager(models.Manager):
             using=db,
         )
 
-    def _to_tag_model_instances(self, tags):
+    def _to_tag_model_instances(self, lang, tags):
         """
         Takes an iterable containing either strings, tag objects, or a mixture
         of both and returns set of tag objects.
@@ -194,12 +194,10 @@ class _TaggableManager(models.Manager):
         # Some databases can do case-insensitive comparison with IN, which
         # would be faster, but we can't rely on it or easily detect it.
         for tag in str_tags:
-            tagname, lang_code = tag.rsplit(' ', maxsplit=1)
-            lang_code = lang_code.strip('()')
             if case_insensitive:
-                _tag = manager.filter(name__iexact=tagname, language_code=lang_code).first()
+                _tag = manager.filter(name__iexact=tag, language_code=lang).first()
             else:
-                _tag = manager.filter(name=tagname, language_code=lang_code).first()
+                _tag = manager.filter(name=tag, language_code=lang).first()
             if _tag:
                 existing.append(_tag)
 
@@ -216,7 +214,7 @@ class _TaggableManager(models.Manager):
         return self.get_queryset().values_list("slug", flat=True)
 
     @require_instance_manager
-    def set(self, *tags, **kwargs):
+    def set(self, tags_obj, **kwargs):
         """
         Set the object's tags to the given n tags. If the clear kwarg is True
         then all existing tags are removed (using `.clear()`) and the new tags
@@ -225,18 +223,19 @@ class _TaggableManager(models.Manager):
         """
         db = router.db_for_write(self.through, instance=self.instance)
         clear = kwargs.pop("clear", False)
-
+        tags = tags_obj['tags']
+        lang = tags_obj['language_code']
         if clear:
             self.clear()
-            self.add(*tags)
+            self.add(lang, tags)
         else:
             # make sure we're working with a collection of a uniform type
-            objs = self._to_tag_model_instances(tags)
+            objs = self._to_tag_model_instances(lang, tags)
 
             # get the existing tag strings
             old_tag_strs = set(
                 self.through._default_manager.using(db)
-                .filter(**self._lookup_kwargs())
+                .filter(**self._lookup_kwargs(), tag__language_code=lang)
                 .values_list("tag__id", flat=True)
             )
 
@@ -248,7 +247,7 @@ class _TaggableManager(models.Manager):
                     new_objs.append(obj)
 
             self.remove(*old_tag_strs)
-            self.add(*new_objs)
+            self.add(lang, new_objs)
 
     @require_instance_manager
     def remove(self, *tags):
@@ -499,7 +498,7 @@ class TaggableManager(RelatedField):
                 )
 
     def save_form_data(self, instance, value):
-        getattr(instance, self.name).set(*value)
+        getattr(instance, self.name).set(value)
 
     def formfield(self, form_class=TagField, **kwargs):
         defaults = {
