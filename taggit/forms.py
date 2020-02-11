@@ -25,6 +25,8 @@ class TagField(forms.CharField):
 
     def clean(self, value):
         value = super().clean(value)
+        if not value:
+            return {'language_code': '', 'tags': []}
         value_obj = json.loads(value)
         tags_str = parse_tags(value_obj['tags'])
         value_obj['tags'] = tags_str
